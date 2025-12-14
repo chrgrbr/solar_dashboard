@@ -1,0 +1,25 @@
+# Kostal Solar Dashboard - Python Dependencies
+
+# Web automation for authentication
+selenium==4.15.2
+webdriver-manager==4.0.1
+
+# API requests
+requests==2.31.0
+
+# Environment variables
+python-dotenv==1.0.0
+
+# Image processing
+Pillow==10.1.0
+
+# Data visualization
+matplotlib==3.8.2
+
+# Raspberry Pi GPIO (only needed on Pi)
+# Uncomment when running on Raspberry Pi:
+# RPi.GPIO==0.7.1
+# spidev==3.6
+
+# Waveshare e-paper library (install separately on Pi)
+# See: https://github.com/waveshare/e-Paper

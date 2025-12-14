@@ -1,0 +1,28 @@
+# Secrets - NEVER commit these
+.env
+credentials.json
+config.json
+
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Logs
+*.log
+logs/
+
+# Test outputs
+solar_display.png
+test_display.png
+latest_data.json
+
+# System files
+.DS_Store
+.vscode/
+.idea/
+
+dev
+tmp/*

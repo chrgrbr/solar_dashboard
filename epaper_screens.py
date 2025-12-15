@@ -18,6 +18,7 @@ Usage:
 import os
 from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont
+import numpy as np
 import matplotlib
 matplotlib.use('Agg')  # Non-interactive backend
 import matplotlib.pyplot as plt
@@ -256,145 +257,115 @@ def create_screen_monthly(data):
 
 def create_screen_timeline(daily_data, power_timeseries):
     """
-    Screen 4: Timeline graph showing solar generation AND house consumption
-    Uses 4-level grayscale (255=white, 192=light, 128=dark, 0=black)
-    Light gray fill = consumption only (from grid)
-    Dark gray fill = overlap (self-consumption from solar)
+    Screen 4: Timeline with matplotlib fill_between
+    Shows solar generation vs house consumption with proper fill
     """
-    # Create grayscale image with Waveshare gray levels
-    # GRAY1=255 (white), GRAY2=192 (light), GRAY3=128 (dark), GRAY4=0 (black)
-    img = Image.new('L', (264, 176), 255)  # White background
-    draw = ImageDraw.Draw(img)
+    import matplotlib.pyplot as plt
+    import matplotlib.dates as mdates
+    import io
     
-    # Get font
-    try:
-        font_title = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 10)
-        font_small = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', 7)
-    except:
-        font_title = ImageFont.load_default()
-        font_small = ImageFont.load_default()
-    
-    # Title
-    draw.text((5, 2), f'SOLAR vs VERBRAUCH - {daily_data["date"]}', fill=0, font=font_title)
+    fig, ax = plt.subplots(figsize=(2.64, 1.76), dpi=100)
+    fig.patch.set_facecolor('white')
     
     # Extract data
-    pv_gen_data = None
-    consumption_data = None
-    
-    if power_timeseries:
-        if isinstance(power_timeseries, dict):
-            pv_gen_data = power_timeseries.get('pv_gen', [])
-            consumption_data = power_timeseries.get('home_consumption_power', [])
-        else:
-            pv_gen_data = power_timeseries
+    pv_gen_data = power_timeseries.get('pv_gen', []) if isinstance(power_timeseries, dict) else power_timeseries
+    consumption_data = power_timeseries.get('home_consumption_power', []) if isinstance(power_timeseries, dict) else []
     
     if not pv_gen_data or len(pv_gen_data) == 0:
-        draw.text((80, 80), 'Keine Daten verfügbar', fill=0, font=font_small)
-        return img
+        ax.text(0.5, 0.5, 'Keine Daten verfügbar', ha='center', va='center', fontsize=10, transform=ax.transAxes)
+        plt.tight_layout()
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', dpi=100, facecolor='white')
+        buf.seek(0)
+        img = Image.open(buf)
+        plt.close()
+        return img.convert('L')
     
     # Parse generation data
     gen_timestamps = []
-    gen_values_w = []
-    
+    gen_values = []
     for entry in pv_gen_data:
         try:
-            ts = datetime.fromisoformat(entry['timestamp'])
-            gen_timestamps.append(ts)
-            gen_values_w.append(entry['value'])
+            gen_timestamps.append(datetime.fromisoformat(entry['timestamp']))
+            gen_values.append(entry['value'] / 1000)  # Convert to kW
         except:
             continue
     
     # Parse consumption data
     cons_timestamps = []
-    cons_values_w = []
-    
+    cons_values = []
     if consumption_data:
         for entry in consumption_data:
             try:
-                ts = datetime.fromisoformat(entry['timestamp'])
-                cons_timestamps.append(ts)
-                cons_values_w.append(entry['value'])
+                cons_timestamps.append(datetime.fromisoformat(entry['timestamp']))
+                cons_values.append(entry['value'] / 1000)
             except:
                 continue
     
     if not gen_timestamps:
-        draw.text((80, 80), 'Keine Daten', fill=0, font=font_small)
-        return img
+        ax.text(0.5, 0.5, 'Keine Daten', ha='center', va='center', fontsize=10, transform=ax.transAxes)
+        plt.tight_layout()
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', dpi=100, facecolor='white')
+        buf.seek(0)
+        img = Image.open(buf)
+        plt.close()
+        return img.convert('L')
     
-    # Convert to kW
-    gen_values_kw = [v / 1000 for v in gen_values_w]
-    cons_values_kw = [v / 1000 for v in cons_values_w] if cons_values_w else []
+    # Plot both lines
+    ax.plot(gen_timestamps, gen_values, color='black', linewidth=1.5, linestyle='-', label='Erzeugung')
     
-    # Graph dimensions
-    graph_x = 30
-    graph_y = 20
-    graph_w = 225
-    graph_h = 125
+    if cons_timestamps and cons_values:
+        ax.plot(cons_timestamps, cons_values, color='black', linewidth=1.5, linestyle='--', label='Verbrauch')
+        
+        # Convert to numpy arrays for easier math
+        gen_arr = np.array(gen_values)
+        cons_arr = np.array(cons_values)
+        
+        # Fill the OVERLAP area (minimum of both) in DARK gray
+        min_values = np.minimum(gen_arr, cons_arr)
+        ax.fill_between(gen_timestamps, 0, min_values, alpha=0.6, color='darkgray')
+        
+        # Fill the DIFFERENCE areas in LIGHT gray
+        # Where generation is higher (excess solar going to grid)
+        ax.fill_between(gen_timestamps, min_values, gen_arr, 
+                        where=(gen_arr > cons_arr), alpha=0.3, color='lightgray', interpolate=True)
+        
+        # Where consumption is higher (importing from grid)
+        ax.fill_between(gen_timestamps, min_values, cons_arr,
+                        where=(cons_arr > gen_arr), alpha=0.3, color='lightgray', interpolate=True)
     
-    # Find max value for scaling
-    max_val = max(gen_values_kw)
-    if cons_values_kw:
-        max_val = max(max_val, max(cons_values_kw))
-    max_val = max(max_val, 0.1)
+    # Title
+    ax.set_title(f'TAGESVERLAUF - {daily_data["date"]}', fontsize=10, weight='bold', pad=5)
+    ax.set_ylabel('kW', fontsize=8)
     
-    # Draw axes (light gray - GRAY2)
-    draw.line([(graph_x, graph_y), (graph_x, graph_y + graph_h)], fill=192, width=1)
-    draw.line([(graph_x, graph_y + graph_h), (graph_x + graph_w, graph_y + graph_h)], fill=192, width=1)
+    # X-axis formatting with ANGLED labels
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))
+    ax.xaxis.set_major_locator(mdates.HourLocator(interval=3))
+    plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha='right', fontsize=6)
+    ax.tick_params(axis='y', labelsize=6)
     
-    # Draw grid lines (light gray - GRAY2)
-    for i in range(1, 5):
-        y = graph_y + int(graph_h * i / 5)
-        draw.line([(graph_x, y), (graph_x + graph_w, y)], fill=192, width=1)
+    # Grid
+    ax.grid(True, alpha=0.3, linestyle='--', linewidth=0.5)
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
     
-    # Function to convert data point to pixel coordinates
-    def to_pixel(timestamp_idx, value_kw, num_points):
-        x = graph_x + int((timestamp_idx / max(num_points - 1, 1)) * graph_w)
-        y = graph_y + graph_h - int((value_kw / max_val) * graph_h)
-        return (x, y)
+    # Remove margins - make data touch axes
+    ax.set_xlim(gen_timestamps[0], gen_timestamps[-1])
+    ax.set_ylim(bottom=0)
+    ax.margins(0)
     
-    # Fill under CONSUMPTION line (light gray - GRAY2=192)
-    if len(cons_values_kw) > 1:
-        points = [to_pixel(i, val, len(cons_values_kw)) for i, val in enumerate(cons_values_kw)]
-        polygon_points = points + [(graph_x + graph_w, graph_y + graph_h), (graph_x, graph_y + graph_h)]
-        draw.polygon(polygon_points, fill=192)
+    plt.tight_layout()
     
-    # Fill under GENERATION line (dark gray - GRAY3=128)
-    # This creates darker area where both overlap (self-consumption)
-    if len(gen_values_kw) > 1:
-        points = [to_pixel(i, val, len(gen_values_kw)) for i, val in enumerate(gen_values_kw)]
-        polygon_points = points + [(graph_x + graph_w, graph_y + graph_h), (graph_x, graph_y + graph_h)]
-        draw.polygon(polygon_points, fill=128)
+    # Convert to PIL Image
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png', dpi=100, facecolor='white', edgecolor='none')
+    buf.seek(0)
+    img = Image.open(buf)
+    plt.close()
     
-    # Draw CONSUMPTION line DASHED (black)
-    if len(cons_values_kw) > 1:
-        points = [to_pixel(i, val, len(cons_values_kw)) for i, val in enumerate(cons_values_kw)]
-        for i in range(len(points) - 1):
-            if i % 2 == 0:  # Dashed
-                draw.line([points[i], points[i + 1]], fill=0, width=2)
-    
-    # Draw GENERATION line SOLID (black)
-    if len(gen_values_kw) > 1:
-        points = [to_pixel(i, val, len(gen_values_kw)) for i, val in enumerate(gen_values_kw)]
-        for i in range(len(points) - 1):
-            draw.line([points[i], points[i + 1]], fill=0, width=2)
-    
-    # Y-axis label
-    draw.text((8, graph_y + int(graph_h/2) - 10), 'kW', fill=0, font=font_small)
-    
-    # Y-axis tick labels
-    draw.text((5, graph_y - 5), f'{max_val:.1f}', fill=0, font=font_small)
-    draw.text((5, graph_y + graph_h - 5), '0', fill=0, font=font_small)
-    
-    # X-axis time labels
-    if gen_timestamps and len(gen_timestamps) > 0:
-        indices = [0, len(gen_timestamps)//4, len(gen_timestamps)//2, 3*len(gen_timestamps)//4, len(gen_timestamps)-1]
-        for idx in indices:
-            if idx < len(gen_timestamps):
-                time_str = gen_timestamps[idx].strftime('%H:%M')
-                x_pos = graph_x + int((idx / (len(gen_timestamps) - 1)) * graph_w) - 10
-                draw.text((x_pos, graph_y + graph_h + 2), time_str, fill=0, font=font_small)
-    
-    return img
+    # Convert to grayscale for 4-gray display
+    return img.convert('L')
     
     # Function to convert data point to pixel coordinates
     def to_pixel(timestamp_idx, value_kw, num_points):

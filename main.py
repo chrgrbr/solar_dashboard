@@ -256,8 +256,8 @@ class SolarDashboard:
                 # Check if image is grayscale or 1-bit
                 if image.mode == 'L':
                     # Grayscale image (4 levels for timeline)
-                    # V2 driver supports grayscale with display_4Gray
-                    self.epd.init_4Gray()
+                    # V2 driver supports grayscale - note capital I in Init
+                    self.epd.Init_4Gray()
                     buffer = self.epd.getbuffer_4Gray(image)
                     self.epd.display_4Gray(buffer)
                     self.epd.init()  # Re-init for normal mode after grayscale

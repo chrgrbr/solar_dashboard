@@ -257,12 +257,13 @@ def create_screen_monthly(data):
 def create_screen_timeline(daily_data, power_timeseries):
     """
     Screen 4: Timeline graph showing solar generation AND house consumption
-    Uses 4-level grayscale with filled areas and dashed/solid lines
-    Light gray = consumption only (grid import)
-    Dark gray = overlap (self-consumption)
+    Uses 4-level grayscale (255=white, 192=light, 128=dark, 0=black)
+    Light gray fill = consumption only (from grid)
+    Dark gray fill = overlap (self-consumption from solar)
     """
-    # Create 4-level grayscale image (L mode: 0=black, 85=dark gray, 170=light gray, 255=white)
-    img = Image.new('L', (264, 176), 255)  # Start with white background
+    # Create grayscale image with Waveshare gray levels
+    # GRAY1=255 (white), GRAY2=192 (light), GRAY3=128 (dark), GRAY4=0 (black)
+    img = Image.new('L', (264, 176), 255)  # White background
     draw = ImageDraw.Draw(img)
     
     # Get font
@@ -274,7 +275,7 @@ def create_screen_timeline(daily_data, power_timeseries):
         font_small = ImageFont.load_default()
     
     # Title
-    draw.text((5, 2), f'Tagesverlauf - {daily_data["date"]}', fill=0, font=font_title)
+    draw.text((5, 2), f'SOLAR vs VERBRAUCH - {daily_data["date"]}', fill=0, font=font_title)
     
     # Extract data
     pv_gen_data = None
@@ -289,7 +290,7 @@ def create_screen_timeline(daily_data, power_timeseries):
     
     if not pv_gen_data or len(pv_gen_data) == 0:
         draw.text((80, 80), 'Keine Daten verfügbar', fill=0, font=font_small)
-        return img.convert('L')
+        return img
     
     # Parse generation data
     gen_timestamps = []
@@ -318,7 +319,7 @@ def create_screen_timeline(daily_data, power_timeseries):
     
     if not gen_timestamps:
         draw.text((80, 80), 'Keine Daten', fill=0, font=font_small)
-        return img.convert('L')
+        return img
     
     # Convert to kW
     gen_values_kw = [v / 1000 for v in gen_values_w]
@@ -334,16 +335,16 @@ def create_screen_timeline(daily_data, power_timeseries):
     max_val = max(gen_values_kw)
     if cons_values_kw:
         max_val = max(max_val, max(cons_values_kw))
-    max_val = max(max_val, 0.1)  # Avoid division by zero
+    max_val = max(max_val, 0.1)
     
-    # Draw axes (light gray)
-    draw.line([(graph_x, graph_y), (graph_x, graph_y + graph_h)], fill=170, width=1)  # Y-axis
-    draw.line([(graph_x, graph_y + graph_h), (graph_x + graph_w, graph_y + graph_h)], fill=170, width=1)  # X-axis
+    # Draw axes (light gray - GRAY2)
+    draw.line([(graph_x, graph_y), (graph_x, graph_y + graph_h)], fill=192, width=1)
+    draw.line([(graph_x, graph_y + graph_h), (graph_x + graph_w, graph_y + graph_h)], fill=192, width=1)
     
-    # Draw grid lines (very light gray)
+    # Draw grid lines (light gray - GRAY2)
     for i in range(1, 5):
         y = graph_y + int(graph_h * i / 5)
-        draw.line([(graph_x, y), (graph_x + graph_w, y)], fill=200, width=1)
+        draw.line([(graph_x, y), (graph_x + graph_w, y)], fill=192, width=1)
     
     # Function to convert data point to pixel coordinates
     def to_pixel(timestamp_idx, value_kw, num_points):
@@ -351,31 +352,18 @@ def create_screen_timeline(daily_data, power_timeseries):
         y = graph_y + graph_h - int((value_kw / max_val) * graph_h)
         return (x, y)
     
-    # Calculate minimum of both curves at each point for overlap
-    if len(cons_values_kw) > 1 and len(gen_values_kw) > 1 and len(cons_values_kw) == len(gen_values_kw):
-        # Fill light gray under consumption ONLY where it exceeds generation
-        points_cons = [to_pixel(i, val, len(cons_values_kw)) for i, val in enumerate(cons_values_kw)]
-        points_gen = [to_pixel(i, gen_values_kw[i], len(gen_values_kw)) for i in range(len(gen_values_kw))]
-        
-        # Fill under consumption line (light gray for total)
-        polygon_points = points_cons + [(graph_x + graph_w, graph_y + graph_h), (graph_x, graph_y + graph_h)]
-        draw.polygon(polygon_points, fill=170)
-        
-        # Fill under generation line (dark gray - creates overlap effect)
-        polygon_points = points_gen + [(graph_x + graph_w, graph_y + graph_h), (graph_x, graph_y + graph_h)]
-        draw.polygon(polygon_points, fill=85)
-        
-    elif len(cons_values_kw) > 1:
-        # Only consumption data
+    # Fill under CONSUMPTION line (light gray - GRAY2=192)
+    if len(cons_values_kw) > 1:
         points = [to_pixel(i, val, len(cons_values_kw)) for i, val in enumerate(cons_values_kw)]
         polygon_points = points + [(graph_x + graph_w, graph_y + graph_h), (graph_x, graph_y + graph_h)]
-        draw.polygon(polygon_points, fill=170)
-        
-    elif len(gen_values_kw) > 1:
-        # Only generation data
+        draw.polygon(polygon_points, fill=192)
+    
+    # Fill under GENERATION line (dark gray - GRAY3=128)
+    # This creates darker area where both overlap (self-consumption)
+    if len(gen_values_kw) > 1:
         points = [to_pixel(i, val, len(gen_values_kw)) for i, val in enumerate(gen_values_kw)]
         polygon_points = points + [(graph_x + graph_w, graph_y + graph_h), (graph_x, graph_y + graph_h)]
-        draw.polygon(polygon_points, fill=85)
+        draw.polygon(polygon_points, fill=128)
     
     # Draw CONSUMPTION line DASHED (black)
     if len(cons_values_kw) > 1:
@@ -397,15 +385,64 @@ def create_screen_timeline(daily_data, power_timeseries):
     draw.text((5, graph_y - 5), f'{max_val:.1f}', fill=0, font=font_small)
     draw.text((5, graph_y + graph_h - 5), '0', fill=0, font=font_small)
     
-    # X-axis time labels (multiple points)
+    # X-axis time labels
     if gen_timestamps and len(gen_timestamps) > 0:
-        # Show times at 0%, 25%, 50%, 75%, 100%
         indices = [0, len(gen_timestamps)//4, len(gen_timestamps)//2, 3*len(gen_timestamps)//4, len(gen_timestamps)-1]
         for idx in indices:
             if idx < len(gen_timestamps):
                 time_str = gen_timestamps[idx].strftime('%H:%M')
                 x_pos = graph_x + int((idx / (len(gen_timestamps) - 1)) * graph_w) - 10
                 draw.text((x_pos, graph_y + graph_h + 2), time_str, fill=0, font=font_small)
+    
+    return img
+    
+    # Function to convert data point to pixel coordinates
+    def to_pixel(timestamp_idx, value_kw, num_points):
+        x = graph_x + int((timestamp_idx / max(num_points - 1, 1)) * graph_w)
+        y = graph_y + graph_h - int((value_kw / max_val) * graph_h)
+        return (x, y)
+    
+    # Draw GENERATION line (BLACK - 0)
+    if len(gen_values_kw) > 1:
+        points = [to_pixel(i, val, len(gen_values_kw)) for i, val in enumerate(gen_values_kw)]
+        for i in range(len(points) - 1):
+            draw.line([points[i], points[i + 1]], fill=0, width=2)
+    
+    # Draw CONSUMPTION line (DARK GRAY - 85)
+    if len(cons_values_kw) > 1:
+        points = [to_pixel(i, val, len(cons_values_kw)) for i, val in enumerate(cons_values_kw)]
+        for i in range(len(points) - 1):
+            draw.line([points[i], points[i + 1]], fill=85, width=2)
+    
+    # Y-axis labels
+    draw.text((2, graph_y - 5), f'{max_val:.1f}', fill=0, font=font_small)
+    draw.text((2, graph_y + graph_h - 8), '0', fill=0, font=font_small)
+    draw.text((2, graph_y + int(graph_h/2) - 4), f'{max_val/2:.1f}', fill=0, font=font_small)
+    
+    # X-axis time labels
+    if gen_timestamps:
+        start_time = gen_timestamps[0].strftime('%H:%M')
+        end_time = gen_timestamps[-1].strftime('%H:%M')
+        draw.text((graph_x, graph_y + graph_h + 2), start_time, fill=0, font=font_small)
+        draw.text((graph_x + graph_w - 25, graph_y + graph_h + 2), end_time, fill=0, font=font_small)
+    
+    # Legend (using different shades)
+    legend_y = 155
+    # Black line for solar
+    draw.line([(10, legend_y), (30, legend_y)], fill=0, width=2)
+    draw.text((35, legend_y - 5), 'Solar-Erzeugung', fill=0, font=font_small)
+    
+    # Dark gray line for consumption
+    draw.line([(135, legend_y), (155, legend_y)], fill=85, width=2)
+    draw.text((160, legend_y - 5), 'Verbrauch', fill=85, font=font_small)
+    
+    # Stats
+    max_gen = max(gen_values_kw)
+    avg_gen = sum(gen_values_kw) / len(gen_values_kw)
+    total_kwh = daily_data['total_generation_wh'] / 1000
+    
+    stats_text = f'Max: {max_gen:.1f}kW  Ø: {avg_gen:.1f}kW  Σ: {total_kwh:.1f}kWh'
+    draw.text((10, 167), stats_text, fill=0, font=font_small)
     
     # Return as grayscale (4 levels)
     return img

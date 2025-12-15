@@ -7,7 +7,7 @@ Buttons:
 - Button 1: Show realtime data
 - Button 2: Show daily statistics
 - Button 3: Show monthly statistics
-- Button 4: Show timeline
+- Button 4: Refresh data from API
 """
 
 import os
@@ -88,6 +88,16 @@ class SolarDashboard:
     def fetch_fresh_data(self):
         """Fetch fresh data from API"""
         print("\n[Fetching data from API...]")
+        
+        # Show loading screen if display is available
+        if self.display_available:
+            try:
+                from loading_screen import create_loading_screen
+                loading_img = create_loading_screen("Lade Solar-Daten...")
+                buffer = self.epd.getbuffer(loading_img)
+                self.epd.display(buffer)
+            except:
+                pass  # If loading screen fails, continue anyway
         
         try:
             from auth import get_bearer_token
@@ -243,8 +253,19 @@ class SolarDashboard:
         if self.display_available:
             # Display is available - use it!
             try:
-                buffer = self.epd.getbuffer(image)
-                self.epd.display(buffer)
+                # Check if image is grayscale or 1-bit
+                if image.mode == 'L':
+                    # Grayscale image (4 levels for timeline)
+                    # V2 driver supports grayscale with display_4Gray
+                    self.epd.init_4Gray()
+                    buffer = self.epd.getbuffer_4Gray(image)
+                    self.epd.display_4Gray(buffer)
+                    self.epd.init()  # Re-init for normal mode after grayscale
+                else:
+                    # 1-bit image (normal black/white)
+                    buffer = self.epd.getbuffer(image)
+                    self.epd.display(buffer)
+                
                 print("  ✓ Display updated")
             except Exception as e:
                 print(f"  ✗ Display error: {e}")

@@ -245,7 +245,30 @@ if __name__ == "__main__":
         
         power_resp = requests.get(power_url, params=power_params, headers=headers, timeout=30)
         power_resp.raise_for_status()
-        power_timeseries = power_resp.json()['timeSeries']['pv_consumption_power']
+        timeseries_data = power_resp.json()['timeSeries']
+        
+        # Calculate total PV generation: pv_consumption_power + grid_feedin_power
+        pv_consumption = timeseries_data.get('pv_consumption_power', [])
+        grid_feedin = timeseries_data.get('grid_feedin_power', [])
+        
+        pv_gen_calculated = []
+        for i in range(min(len(pv_consumption), len(grid_feedin))):
+            timestamp = pv_consumption[i]['timestamp']
+            # Total solar = what we use directly + what we feed to grid
+            total_solar = pv_consumption[i]['value'] + grid_feedin[i]['value']
+            pv_gen_calculated.append({
+                'timestamp': timestamp,
+                'value': total_solar
+            })
+        
+        # Get house consumption for comparison
+        home_consumption = timeseries_data.get('home_consumption_power', [])
+        
+        power_timeseries = {
+            'pv_gen': pv_gen_calculated,  # Calculated total solar generation
+            'pv_consumption_power': pv_consumption,  # Direct solar consumption
+            'home_consumption_power': home_consumption  # Total house consumption
+        }
         
         # Combine into one structure
         all_data = {

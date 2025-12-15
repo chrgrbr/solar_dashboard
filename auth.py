@@ -19,6 +19,38 @@ from webdriver_manager.chrome import ChromeDriverManager
 # Load environment variables from .env file
 load_dotenv()
 
+def make_driver():
+    """
+    Create Chrome driver with correct settings for Mac and Raspberry Pi
+    Auto-detects platform and uses appropriate paths
+    """
+    import platform
+    
+    options = Options()
+    
+    # Detect platform
+    system = platform.system()
+    machine = platform.machine()
+    
+    if system == "Linux" and ("arm" in machine or "aarch64" in machine):
+        # Raspberry Pi
+        options.binary_location = "/usr/bin/chromium"
+        service = Service("/usr/bin/chromedriver")
+    else:
+        # Mac or other systems - use webdriver-manager
+        service = Service(ChromeDriverManager().install())
+    
+    # Common options for all platforms
+    options.add_argument("--headless=new")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-gpu")
+    
+    # CRITICAL: Enable performance logging to capture network requests
+    options.set_capability('goog:loggingPrefs', {'performance': 'ALL'})
+
+    return webdriver.Chrome(service=service, options=options)
+
 
 def get_bearer_token(verbose=True):
     """
@@ -54,40 +86,18 @@ def get_bearer_token(verbose=True):
         print(f"   Username: {username[:20]}...")
         print(f"   Starting Chrome...")
     
-    # Configure Chrome with performance logging to capture network traffic
-    options = Options()
-    options.add_argument('--headless')
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
-    options.add_argument('--disable-gpu')
-    
-    # Enable performance logging to capture network requests
-    options.set_capability('goog:loggingPrefs', {'performance': 'ALL'})
-    
-    if verbose:
-        print("   Configured Chrome with network monitoring...")
-    
-    # Use webdriver-manager to automatically get matching ChromeDriver
+    # Use the make_driver function which has all the correct settings
     try:
-        service = Service(ChromeDriverManager().install())
-        driver = webdriver.Chrome(service=service, options=options)
+        driver = make_driver()
+        if verbose:
+            print("   ✓ Chrome started with network monitoring...")
     except Exception as e:
-        print(f"\n✗ Failed to start Chrome/ChromeDriver")
-        print(f"Error: {e}")
-        print("\nTrying alternative method...")
-        
-        # Fallback: try without webdriver-manager
-        try:
-            driver = webdriver.Chrome(options=options)
-        except Exception as e2:
-            raise Exception(
-                f"Could not start ChromeDriver.\n"
-                f"Original error: {e}\n"
-                f"Fallback error: {e2}\n\n"
-                f"Try manually installing ChromeDriver:\n"
-                f"  brew install chromedriver\n"
-                f"Or download from: https://chromedriver.chromium.org/"
-            )
+        raise Exception(
+            f"Could not start ChromeDriver.\n"
+            f"Error: {e}\n\n"
+            f"Make sure Chromium and ChromeDriver are installed:\n"
+            f"  sudo apt-get install chromium-browser chromium-chromedriver"
+        )
     
     try:
         # Navigate to portal
@@ -209,7 +219,11 @@ def get_bearer_token(verbose=True):
             raise Exception("Failed to extract bearer token - no Authorization headers captured")
         
         # Save token to file for reuse
-        token_file = "/tmp/bearer_token.txt"
+        token_file = "./tmp/bearer_token.txt"
+        
+        # Create directory if it doesn't exist
+        os.makedirs(os.path.dirname(token_file), exist_ok=True)
+        
         with open(token_file, 'w') as f:
             f.write(token)
         if verbose:

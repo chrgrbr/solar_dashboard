@@ -258,6 +258,10 @@ if __name__ == "__main__":
         
         # Save to file
         output_file = './tmp/solar_display_data.json'
+        
+        # Create directory if it doesn't exist
+        os.makedirs(os.path.dirname(output_file), exist_ok=True)
+        
         with open(output_file, 'w', encoding='utf-8') as f:
             json.dump(all_data, f, indent=2, ensure_ascii=False)
         

@@ -93,7 +93,27 @@ python3 main.py --mock
 
 ### 5. Deploy to Raspberry Pi
 
-**Install Waveshare Library:**
+**Setup Pi**
+```bash
+do apt update && sudo apt upgrade -y
+
+# Enable SPI (for e-ink)
+sudo raspi-config nonint do_spi 0
+
+# I# Install all dependencies (PiOS Bookworm)do apt install -y \
+    python3-pip \
+    python3-venv \
+    python3-pil \
+    python3-numpy \
+    python3-rpi.gpio \
+       python3-spidev  \
+    python3-setuptools \
+    python3-wheel \  git \
+    fonts-dejavu \
+    fonts-dejavu-core \
+       chromium \
+    chromium-driver
+```*Install Waveshare Library:**
 ```bash
 # Install system dependencies
 sudo apt-get install python3-pip python3-pil python3-numpy

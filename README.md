@@ -65,7 +65,7 @@ KOSTAL_PASSWORD=your_password
 KOSTAL_PLANT_ID=1082166
 ```
 
-### 3. Install Fonts (Important!)
+### 3. Install Fonts
 
 **On Mac (for development):**
 ```bash
@@ -95,27 +95,38 @@ python3 main.py --mock
 
 **Setup Pi**
 ```bash
-do apt update && sudo apt upgrade -y
+sudo apt update && sudo apt upgrade -y
 
 # Enable SPI (for e-ink)
 sudo raspi-config nonint do_spi 0
 
-# I# Install all dependencies (PiOS Bookworm)do apt install -y \
+# Install all dependencies (PiOS Bookworm)
+sudo apt install -y \
     python3-pip \
     python3-venv \
     python3-pil \
     python3-numpy \
     python3-rpi.gpio \
-       python3-spidev  \
+    python3-spidev  \
     python3-setuptools \
     python3-wheel \  git \
     fonts-dejavu \
     fonts-dejavu-core \
-       chromium \
+    chromium \
     chromium-driver
-```*Install Waveshare Library:**
+```
+**Setup venv**
 ```bash
-# Install system dependencies
+#Create Venv
+cd ~
+pyhon -m venv venv
+source venv/bin/activate
+python -m pip install -U pip setuptools wheel
+```
+
+**Setup Waveshare Display**
+```bash
+#Install system dependencies
 sudo apt-get install python3-pip python3-pil python3-numpy
 sudo pip3 install RPi.GPIO spidev
 
@@ -123,23 +134,28 @@ sudo pip3 install RPi.GPIO spidev
 cd ~
 git clone https://github.com/waveshare/e-Paper
 cd e-Paper/RaspberryPi_JetsonNano/python
-sudo pip3 install .
+sudo pip3 install . --no-deps
 ```
 
-**Copy Project:**
+**Clone Project and configure .env**
 ```bash
-scp -r solar-dashboard/ pi@raspberrypi.local:~/
+cd ~
+git clone https://github.com/chrgrbr/solar_dashboard.git
+cd solar_dashboard
+
+#Install requirements
+pip install -r requirements.txt
+
+#Configure Env if not already done
+#eg with nano
+cp .env.example .env
+nano .env
+
+
 ```
 
-**Run on Pi:**
-```bash
-ssh pi@raspberrypi.local
-cd ~/solar-dashboard
-python3 main.py
-```
 
 ---
-
 ## 🎮 Usage
 
 ### Button Functions

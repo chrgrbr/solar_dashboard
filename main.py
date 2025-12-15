@@ -7,7 +7,7 @@ Buttons:
 - Button 1: Show realtime data
 - Button 2: Show daily statistics
 - Button 3: Show monthly statistics
-- Button 4: Show timeline
+- Button 4: Refresh data from API
 """
 
 import os
@@ -54,8 +54,14 @@ class SolarDashboard:
     def init_display(self):
         """Initialize Waveshare e-paper display"""
         try:
-            # Import Waveshare library
-            from waveshare_epd import epd2in7
+            # Try different import paths for Waveshare library
+            try:
+                from waveshare_epd import epd2in7
+            except ImportError:
+                # Try alternative path
+                import sys
+                sys.path.append('/usr/local/lib/python3.13/site-packages')
+                from waveshare_epd import epd2in7
             
             self.epd = epd2in7.EPD()
             self.epd.init()
@@ -63,8 +69,9 @@ class SolarDashboard:
             
             print("✓ E-paper display initialized (2.7 inch)")
             
-        except ImportError:
+        except ImportError as e:
             print("✗ Waveshare e-paper library not found!")
+            print(f"  Error: {e}")
             print("  Install it from: https://github.com/waveshare/e-Paper")
             print("  Running in mock mode instead...")
             self.mock_mode = True
@@ -259,8 +266,8 @@ class SolarDashboard:
     
     def button_4_pressed(self):
         """Button 4: Refresh data and show timeline"""
-        print("\n[Button 4] Timeline")
-        #self.load_data(force_refresh=True)
+        print("\n[Button 4] Refresh & Timeline")
+        self.load_data(force_refresh=True)
         self.display_screen('timeline')
     
     def check_auto_refresh(self):
@@ -332,7 +339,7 @@ class SolarDashboard:
             print("  Running in mock mode instead...")
             return self.run()
         
-        # GPIO pin mapping 
+        # GPIO pin mapping (adjust based on your Waveshare HAT)
         # Check Waveshare wiki for your specific model
         BUTTON_1_PIN = 5   # KEY1
         BUTTON_2_PIN = 6   # KEY2
@@ -348,24 +355,46 @@ class SolarDashboard:
         print(f"Button 4 (GPIO {BUTTON_4_PIN}): Refresh & Timeline")
         print()
         
+        # Clean up any existing GPIO configuration
+        GPIO.setwarnings(False)
+        GPIO.cleanup()
+        
         # Setup GPIO
         GPIO.setmode(GPIO.BCM)
-        GPIO.setup(BUTTON_1_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-        GPIO.setup(BUTTON_2_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-        GPIO.setup(BUTTON_3_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-        GPIO.setup(BUTTON_4_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        
+        try:
+            GPIO.setup(BUTTON_1_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+            GPIO.setup(BUTTON_2_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+            GPIO.setup(BUTTON_3_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+            GPIO.setup(BUTTON_4_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        except Exception as e:
+            print(f"✗ Failed to setup GPIO pins: {e}")
+            print("  Falling back to mock mode...")
+            GPIO.cleanup()
+            return self.run()
         
         # Button callbacks
-        GPIO.add_event_detect(BUTTON_1_PIN, GPIO.FALLING, callback=lambda x: self.button_1_pressed(), bouncetime=300)
-        GPIO.add_event_detect(BUTTON_2_PIN, GPIO.FALLING, callback=lambda x: self.button_2_pressed(), bouncetime=300)
-        GPIO.add_event_detect(BUTTON_3_PIN, GPIO.FALLING, callback=lambda x: self.button_3_pressed(), bouncetime=300)
-        GPIO.add_event_detect(BUTTON_4_PIN, GPIO.FALLING, callback=lambda x: self.button_4_pressed(), bouncetime=300)
+        try:
+            GPIO.add_event_detect(BUTTON_1_PIN, GPIO.FALLING, callback=lambda x: self.button_1_pressed(), bouncetime=300)
+            GPIO.add_event_detect(BUTTON_2_PIN, GPIO.FALLING, callback=lambda x: self.button_2_pressed(), bouncetime=300)
+            GPIO.add_event_detect(BUTTON_3_PIN, GPIO.FALLING, callback=lambda x: self.button_3_pressed(), bouncetime=300)
+            GPIO.add_event_detect(BUTTON_4_PIN, GPIO.FALLING, callback=lambda x: self.button_4_pressed(), bouncetime=300)
+        except RuntimeError as e:
+            print(f"✗ Failed to add button detection: {e}")
+            print("  This usually means:")
+            print("    1. Buttons are already configured (try: sudo pkill python)")
+            print("    2. GPIO pins are in use by another process")
+            print("    3. HAT is not properly connected")
+            print("\n  Falling back to mock mode...")
+            GPIO.cleanup()
+            return self.run()
         
         # Initial display
         self.display_screen('realtime')
         
         try:
             # Main loop
+            print("\n✓ Dashboard running! Press Ctrl+C to exit.")
             while True:
                 self.check_auto_refresh()
                 time.sleep(10)  # Check every 10 seconds

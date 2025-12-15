@@ -346,7 +346,7 @@ def create_screen_timeline(daily_data, power_timeseries):
     ax.tick_params(axis='y', labelsize=6)
     
     # Grid
-    ax.grid(True, alpha=0.3, linestyle='--', linewidth=0.5)
+    #ax.grid(True, alpha=0.3, linestyle='--', linewidth=0.5)
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
     
@@ -364,8 +364,28 @@ def create_screen_timeline(daily_data, power_timeseries):
     img = Image.open(buf)
     plt.close()
     
-    # Convert to grayscale for 4-gray display
-    return img.convert('L')
+    # Convert to grayscale
+    img = img.convert('L')
+    
+    # CRITICAL: Quantize to Waveshare's 4 gray levels (0, 128, 192, 255)
+    # Matplotlib creates smooth gradients - we need to split into 4 discrete levels
+    img_array = np.array(img)
+    quantized = np.ones_like(img_array)*255
+    
+    # Map to nearest Waveshare gray level based on actual matplotlib output
+    # 0-10 -> 0 (black - lines and text)
+    # 11-150 -> 128 (dark gray - darker fills/overlap)
+    # 151-240 -> 192 (light gray - lighter fills)
+    # 241-255 -> 255 (white - background)
+    quantized[img_array <= 120] = 0 ##black
+    quantized[(img_array > 120) & (img_array <= 220)] = 128
+    quantized[(img_array > 220) & (img_array <= 250)] = 192
+    quantized[img_array > 250] = 255 #white
+    
+    # Convert back to PIL Image
+    img = Image.fromarray(quantized.astype('uint8'), mode='L')
+    
+    return img
     
     # Function to convert data point to pixel coordinates
     def to_pixel(timestamp_idx, value_kw, num_points):

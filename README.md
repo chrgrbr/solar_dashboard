@@ -113,7 +113,10 @@ sudo apt install -y \
     fonts-dejavu \
     fonts-dejavu-core \
     chromium \
-    chromium-driver
+    chromium-driver \
+    liblgpio-dev \
+    liblgpio1 \
+    swig
 ```
 **Setup venv**
 ```bash

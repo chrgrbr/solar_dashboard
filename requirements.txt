@@ -11,15 +11,19 @@ requests==2.31.0
 python-dotenv==1.0.0
 
 # Image processing
-Pillow==10.1.0
+Pillow>=10.1.0
 
 # Data visualization
-matplotlib==3.8.2
+matplotlib>=3.8.2
+numpy >= 2.0.0
+
+
 
 # Raspberry Pi GPIO (only needed on Pi)
 # Uncomment when running on Raspberry Pi:
 # RPi.GPIO==0.7.1
 # spidev==3.6
+# lgpio>=0.2.2
 
 # Waveshare e-paper library (install separately on Pi)
 # See: https://github.com/waveshare/e-Paper

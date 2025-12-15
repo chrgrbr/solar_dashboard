@@ -99,6 +99,9 @@ sudo apt update && sudo apt upgrade -y
 
 # Enable SPI (for e-ink)
 sudo raspi-config nonint do_spi 0
+# If that doesn't work (check with "lsmod | grep spi_")
+# sudo raspi-config
+# Go to: Interface Options → SPI → Yes → Finish → Reboot
 
 # Install all dependencies (PiOS Bookworm)
 sudo apt install -y \

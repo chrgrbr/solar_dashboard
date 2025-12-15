@@ -38,6 +38,7 @@ class SolarDashboard:
             mock_mode: If True, run without actual e-paper hardware (for testing)
         """
         self.mock_mode = mock_mode
+        self.display_available = False  # Separate flag for display hardware
         self.current_screen = 'realtime'  # Default screen
         self.last_data_fetch = None
         self.last_button_press = datetime.now()
@@ -50,6 +51,7 @@ class SolarDashboard:
         
         print("Solar Dashboard initialized")
         print(f"Mock mode: {mock_mode}")
+        print(f"Display available: {self.display_available}")
     
     def init_display(self):
         """Initialize Waveshare e-paper display"""
@@ -67,15 +69,18 @@ class SolarDashboard:
             self.epd.init()
             self.epd.Clear()
             
+            self.display_available = True
             print("✓ E-paper display initialized (2.7 inch)")
             
         except ImportError as e:
+            self.display_available = False
             print("✗ Waveshare e-paper library not found!")
             print(f"  Error: {e}")
             print("  Install it from: https://github.com/waveshare/e-Paper")
             print("  Running in mock mode instead...")
             self.mock_mode = True
         except Exception as e:
+            self.display_available = False
             print(f"✗ Failed to initialize display: {e}")
             print("  Running in mock mode instead...")
             self.mock_mode = True
@@ -235,19 +240,23 @@ class SolarDashboard:
         self.current_screen = screen_name
         self.last_button_press = datetime.now()
         
-        if self.mock_mode:
-            # Mock mode: save to file
-            filename = f'./tmp/current_display_{screen_name}.png'
-            image.save(filename)
-            print(f"  ✓ (Mock) Saved to {filename}")
-        else:
-            # Real mode: send to e-paper
+        if self.display_available:
+            # Display is available - use it!
             try:
                 buffer = self.epd.getbuffer(image)
                 self.epd.display(buffer)
                 print("  ✓ Display updated")
             except Exception as e:
                 print(f"  ✗ Display error: {e}")
+                # Fall back to saving file
+                filename = f'./tmp/current_display_{screen_name}.png'
+                image.save(filename)
+                print(f"  ✓ (Fallback) Saved to {filename}")
+        else:
+            # No display - save to file
+            filename = f'./tmp/current_display_{screen_name}.png'
+            image.save(filename)
+            print(f"  ✓ (Mock) Saved to {filename}")
     
     def button_1_pressed(self):
         """Button 1: Show realtime screen"""
@@ -385,25 +394,48 @@ class SolarDashboard:
             print("    1. Buttons are already configured (try: sudo pkill python)")
             print("    2. GPIO pins are in use by another process")
             print("    3. HAT is not properly connected")
-            print("\n  Falling back to mock mode...")
+            print("\n  Continuing without buttons - use keyboard commands...")
             GPIO.cleanup()
-            return self.run()
+            # Don't call self.run() - just continue with keyboard input below
         
         # Initial display
         self.display_screen('realtime')
         
         try:
             # Main loop
-            print("\n✓ Dashboard running! Press Ctrl+C to exit.")
+            print("\n✓ Dashboard running!")
+            print("  Press buttons OR type commands: 1/2/3/4, Ctrl+C to exit\n")
+            
+            # Run both GPIO monitoring and keyboard input
+            import select
+            import sys
+            
             while True:
+                # Check for auto-refresh
                 self.check_auto_refresh()
-                time.sleep(10)  # Check every 10 seconds
+                
+                # Check for keyboard input (non-blocking)
+                if select.select([sys.stdin], [], [], 0.1)[0]:
+                    cmd = sys.stdin.readline().strip()
+                    if cmd == '1':
+                        self.button_1_pressed()
+                    elif cmd == '2':
+                        self.button_2_pressed()
+                    elif cmd == '3':
+                        self.button_3_pressed()
+                    elif cmd == '4':
+                        self.button_4_pressed()
+                    elif cmd.lower() == 'q':
+                        print("Exiting...")
+                        break
+                
+                time.sleep(0.1)  # Small sleep to prevent CPU spinning
                 
         except KeyboardInterrupt:
             print("\n\nShutting down...")
         finally:
             GPIO.cleanup()
-            if not self.mock_mode:
+            if self.display_available:
                 self.epd.sleep()
 
 

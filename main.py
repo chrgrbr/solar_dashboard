@@ -21,7 +21,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Configuration
-PLANT_ID = os.environ.get('KOSTAL_PLANT_ID', '1082166')
+PLANT_ID = os.environ.get('KOSTAL_PLANT_ID')
 DATA_FILE = './tmp/solar_display_data.json'
 DATA_CACHE_MINUTES = 15  # Refresh data every 15 minutes
 SCREEN_TIMEOUT_MINUTES = 30  # Return to screen 1 after inactivity
@@ -57,15 +57,15 @@ class SolarDashboard:
         """Initialize Waveshare e-paper display"""
         try:
             # Try different import paths for Waveshare library
+            # Rev 2.2 uses epd2in7_V2
             try:
-                from waveshare_epd import epd2in7
+                from waveshare_epd import epd2in7_V2
+                self.epd = epd2in7_V2.EPD()
             except ImportError:
-                # Try alternative path
-                import sys
-                sys.path.append('/usr/local/lib/python3.13/site-packages')
+                # Fallback to standard version
                 from waveshare_epd import epd2in7
+                self.epd = epd2in7.EPD()
             
-            self.epd = epd2in7.EPD()
             self.epd.init()
             self.epd.Clear()
             

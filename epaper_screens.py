@@ -304,8 +304,8 @@ def create_screen_timeline(daily_data, power_timeseries):
             avg_kw = sum(values_kw) / len(values_kw)
             total_kwh = daily_data['total_generation_wh'] / 1000
             
-            stats_text = f'Max: {max_kw:.1f}kW  |  Ø: {avg_kw:.1f}kW  |  Heute: {total_kwh:.1f}kWh'
-            fig.text(0.5, 0.02, stats_text, fontsize=6, ha='center', va='bottom')
+            #stats_text = f'Max: {max_kw:.1f}kW  |  Ø: {avg_kw:.1f}kW  |  Heute: {total_kwh:.1f}kWh'
+            #fig.text(0.5, 0.02, stats_text, fontsize=6, ha='center', va='bottom')
         else:
             ax.text(0.5, 0.5, 'Keine Daten', ha='center', va='center', 
                    fontsize=10, transform=ax.transAxes)

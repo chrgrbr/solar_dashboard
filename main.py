@@ -7,7 +7,7 @@ Buttons:
 - Button 1: Show realtime data
 - Button 2: Show daily statistics
 - Button 3: Show monthly statistics
-- Button 4: Refresh data from API
+- Button 4: Show timeline
 """
 
 import os
@@ -21,7 +21,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Configuration
-PLANT_ID = os.environ.get('KOSTAL_PLANT_ID')
+PLANT_ID = os.environ.get('KOSTAL_PLANT_ID', '1082166')
 DATA_FILE = './tmp/solar_display_data.json'
 DATA_CACHE_MINUTES = 15  # Refresh data every 15 minutes
 SCREEN_TIMEOUT_MINUTES = 30  # Return to screen 1 after inactivity
@@ -274,9 +274,8 @@ class SolarDashboard:
         self.display_screen('monthly')
     
     def button_4_pressed(self):
-        """Button 4: Refresh data and show timeline"""
-        print("\n[Button 4] Refresh & Timeline")
-        self.load_data(force_refresh=True)
+        """Button 4: Show timeline"""
+        print("\n[Button 4] Timeline")
         self.display_screen('timeline')
     
     def check_auto_refresh(self):
@@ -309,7 +308,7 @@ class SolarDashboard:
         print("  1 - Show realtime")
         print("  2 - Show daily")
         print("  3 - Show monthly")
-        print("  4 - Refresh & show timeline")
+        print("  4 - Show timeline")
         print("  q - Quit")
         print()
         
@@ -342,99 +341,69 @@ class SolarDashboard:
     def run_with_gpio(self):
         """Main loop with GPIO button support (for Raspberry Pi)"""
         try:
-            import RPi.GPIO as GPIO
+            from gpiozero import Button
         except ImportError:
-            print("✗ RPi.GPIO not available")
-            print("  Running in mock mode instead...")
+            print("✗ gpiozero not available")
+            print("  Install: pip install gpiozero")
+            print("  Running in keyboard mode instead...")
             return self.run()
         
-        # GPIO pin mapping (adjust based on your Waveshare HAT)
-        # Check Waveshare wiki for your specific model
+        # GPIO pin mapping for Rev 2.2 HAT (using gpiozero)
         BUTTON_1_PIN = 5   # KEY1
         BUTTON_2_PIN = 6   # KEY2
         BUTTON_3_PIN = 13  # KEY3
         BUTTON_4_PIN = 19  # KEY4
         
         print("\n" + "="*60)
-        print("DASHBOARD RUNNING (GPIO Mode)")
+        print("DASHBOARD RUNNING (GPIO Mode with gpiozero)")
         print("="*60)
         print(f"Button 1 (GPIO {BUTTON_1_PIN}): Realtime")
         print(f"Button 2 (GPIO {BUTTON_2_PIN}): Daily")
         print(f"Button 3 (GPIO {BUTTON_3_PIN}): Monthly")
-        print(f"Button 4 (GPIO {BUTTON_4_PIN}): Refresh & Timeline")
+        print(f"Button 4 (GPIO {BUTTON_4_PIN}): Timeline")
         print()
         
-        # Clean up any existing GPIO configuration
-        GPIO.setwarnings(False)
-        GPIO.cleanup()
-        
-        # Setup GPIO
-        GPIO.setmode(GPIO.BCM)
-        
+        # Create button objects with gpiozero (no conflicts!)
         try:
-            GPIO.setup(BUTTON_1_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-            GPIO.setup(BUTTON_2_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-            GPIO.setup(BUTTON_3_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-            GPIO.setup(BUTTON_4_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+            btn1 = Button(BUTTON_1_PIN)
+            btn2 = Button(BUTTON_2_PIN)
+            btn3 = Button(BUTTON_3_PIN)
+            btn4 = Button(BUTTON_4_PIN)
+            
+            # Assign button handlers
+            btn1.when_pressed = lambda: self.button_1_pressed()
+            btn2.when_pressed = lambda: self.button_2_pressed()
+            btn3.when_pressed = lambda: self.button_3_pressed()
+            btn4.when_pressed = lambda: self.button_4_pressed()
+            
+            print("✓ Buttons initialized with gpiozero")
+            
         except Exception as e:
-            print(f"✗ Failed to setup GPIO pins: {e}")
-            print("  Falling back to mock mode...")
-            GPIO.cleanup()
+            print(f"✗ Failed to setup buttons: {e}")
+            print("  Falling back to keyboard mode...")
             return self.run()
-        
-        # Button callbacks
-        try:
-            GPIO.add_event_detect(BUTTON_1_PIN, GPIO.FALLING, callback=lambda x: self.button_1_pressed(), bouncetime=300)
-            GPIO.add_event_detect(BUTTON_2_PIN, GPIO.FALLING, callback=lambda x: self.button_2_pressed(), bouncetime=300)
-            GPIO.add_event_detect(BUTTON_3_PIN, GPIO.FALLING, callback=lambda x: self.button_3_pressed(), bouncetime=300)
-            GPIO.add_event_detect(BUTTON_4_PIN, GPIO.FALLING, callback=lambda x: self.button_4_pressed(), bouncetime=300)
-        except RuntimeError as e:
-            print(f"✗ Failed to add button detection: {e}")
-            print("  This usually means:")
-            print("    1. Buttons are already configured (try: sudo pkill python)")
-            print("    2. GPIO pins are in use by another process")
-            print("    3. HAT is not properly connected")
-            print("\n  Continuing without buttons - use keyboard commands...")
-            GPIO.cleanup()
-            # Don't call self.run() - just continue with keyboard input below
         
         # Initial display
         self.display_screen('realtime')
         
         try:
-            # Main loop
-            print("\n✓ Dashboard running!")
-            print("  Press buttons OR type commands: 1/2/3/4, Ctrl+C to exit\n")
-            
-            # Run both GPIO monitoring and keyboard input
-            import select
-            import sys
+            # Main loop - just keep alive and check for auto-refresh
+            print("\n✓ Dashboard running! Press buttons or Ctrl+C to exit.\n")
             
             while True:
                 # Check for auto-refresh
                 self.check_auto_refresh()
-                
-                # Check for keyboard input (non-blocking)
-                if select.select([sys.stdin], [], [], 0.1)[0]:
-                    cmd = sys.stdin.readline().strip()
-                    if cmd == '1':
-                        self.button_1_pressed()
-                    elif cmd == '2':
-                        self.button_2_pressed()
-                    elif cmd == '3':
-                        self.button_3_pressed()
-                    elif cmd == '4':
-                        self.button_4_pressed()
-                    elif cmd.lower() == 'q':
-                        print("Exiting...")
-                        break
-                
-                time.sleep(0.1)  # Small sleep to prevent CPU spinning
+                time.sleep(10)  # Check every 10 seconds
                 
         except KeyboardInterrupt:
             print("\n\nShutting down...")
         finally:
-            GPIO.cleanup()
+            # Clean up gpiozero buttons
+            btn1.close()
+            btn2.close()
+            btn3.close()
+            btn4.close()
+            
             if self.display_available:
                 self.epd.sleep()
 

@@ -180,11 +180,11 @@ def create_screen_daily(data):
     draw.text((155, 85), f"{cons_kwh:6.2f} kWh", fill=0, font=font_large)
     
     solar_kwh = data['from_solar_wh'] / 1000
-    draw.text((15, 108), "→ Von Solar", fill=0, font=font_small)
+    draw.text((15, 108), "→ Aus PV", fill=0, font=font_small)
     draw.text((160, 106), f"{solar_kwh:5.2f} kWh", fill=0, font=font_medium)
     
     grid_kwh = data['from_grid_wh'] / 1000
-    draw.text((15, 124), "→ Vom Netz", fill=0, font=font_small)
+    draw.text((15, 124), "→ Aus Netz", fill=0, font=font_small)
     draw.text((160, 122), f"{grid_kwh:5.2f} kWh", fill=0, font=font_medium)
     
     # Self-sufficiency

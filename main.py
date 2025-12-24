@@ -251,6 +251,9 @@ class SolarDashboard:
                     if not self.last_data_fetch:
                         self.last_data_fetch = datetime.now()
 
+                    # Clear screen cache to force regeneration
+                    self.cached_screens = {}
+
                     print(f"  ✓ Loaded cached data from {DATA_FILE}")
                     return data
             except FileNotFoundError:
@@ -283,6 +286,10 @@ class SolarDashboard:
             with open(DATA_FILE, 'r') as f:
                 data = json.load(f)
                 self.cached_data = data
+
+                # Clear screen cache to force regeneration with new data
+                self.cached_screens = {}
+
                 return data
         except FileNotFoundError:
             print("✗ No cached data found, fetching fresh data...")

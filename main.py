@@ -92,10 +92,14 @@ class SolarDashboard:
             print("  Running in mock mode instead...")
             self.mock_mode = True
     
-    def fetch_fresh_data(self):
-        """Fetch fresh data from API"""
+    def fetch_fresh_data(self, force_reauth=False):
+        """Fetch fresh data from API
+
+        Args:
+            force_reauth: Force re-authentication even if cached token exists
+        """
         print("\n[Fetching data from API...]")
-        
+
         # Show loading screen if display is available
         if self.display_available:
             try:
@@ -105,41 +109,70 @@ class SolarDashboard:
                 self.epd.display(buffer)
             except:
                 pass  # If loading screen fails, continue anyway
-        
+
         try:
             from auth import get_bearer_token
             from solar_data import get_realtime_data, get_daily_data, get_monthly_data
             import requests
-            
-            # Authenticate
-            print("  → Authenticating...")
-            token = get_bearer_token(verbose=False)
-            
-            # Fetch all data
-            print("  → Fetching realtime data...")
-            realtime = get_realtime_data(token, PLANT_ID)
-            
-            print("  → Fetching daily data...")
-            daily = get_daily_data(token, PLANT_ID)
-            
-            print("  → Fetching monthly data...")
-            monthly = get_monthly_data(token, PLANT_ID)
-            
-            # Fetch power timeseries for timeline
-            print("  → Fetching power timeseries...")
-            base_url = "https://kostal-solar-portal.com"
-            headers = {'Authorization': f'Bearer {token}'}
 
-            today = datetime.now()
-            date_from = today.replace(hour=0, minute=0, second=0).strftime('%Y-%m-%dT%H:%M:%S.000')
-            date_to = today.replace(hour=23, minute=59, second=59).strftime('%Y-%m-%dT%H:%M:%S.999')
+            # Try to use cached token first (unless force_reauth)
+            token = None
+            token_file = './tmp/bearer_token.txt'
 
-            power_url = f"{base_url}/api/chart-data/{PLANT_ID}/power"
-            power_params = {'from': date_from, 'to': date_to, 'interval': 'TEN_MINUTES'}
+            if not force_reauth and os.path.exists(token_file):
+                try:
+                    with open(token_file, 'r') as f:
+                        token = f.read().strip()
+                    print("  → Using cached token...")
+                except:
+                    pass
 
-            power_resp = requests.get(power_url, params=power_params, headers=headers, timeout=30)
-            power_resp.raise_for_status()
-            timeseries_data = power_resp.json()['timeSeries']
+            # If no cached token, authenticate
+            if not token:
+                print("  → Authenticating...")
+                token = get_bearer_token(verbose=False)
+            
+            # Try to fetch data with current token
+            try:
+                # Fetch all data
+                print("  → Fetching realtime data...")
+                realtime = get_realtime_data(token, PLANT_ID)
+
+                print("  → Fetching daily data...")
+                daily = get_daily_data(token, PLANT_ID)
+
+                print("  → Fetching monthly data...")
+                monthly = get_monthly_data(token, PLANT_ID)
+
+                # Fetch power timeseries for timeline
+                print("  → Fetching power timeseries...")
+                base_url = "https://kostal-solar-portal.com"
+                headers = {'Authorization': f'Bearer {token}'}
+
+                today = datetime.now()
+                date_from = today.replace(hour=0, minute=0, second=0).strftime('%Y-%m-%dT%H:%M:%S.000')
+                date_to = today.replace(hour=23, minute=59, second=59).strftime('%Y-%m-%dT%H:%M:%S.999')
+
+                power_url = f"{base_url}/api/chart-data/{PLANT_ID}/power"
+                power_params = {'from': date_from, 'to': date_to, 'interval': 'TEN_MINUTES'}
+
+                power_resp = requests.get(power_url, params=power_params, headers=headers, timeout=30)
+                power_resp.raise_for_status()
+                timeseries_data = power_resp.json()['timeSeries']
+
+            except requests.exceptions.HTTPError as e:
+                # If token is invalid (401/403), re-authenticate and retry
+                if e.response.status_code in [401, 403]:
+                    print("  ✗ Token expired or invalid")
+                    if force_reauth:
+                        # Already tried re-auth, give up
+                        raise
+                    print("  → Re-authenticating...")
+                    # Recursively retry with force_reauth=True
+                    return self.fetch_fresh_data(force_reauth=True)
+                else:
+                    # Other HTTP error, re-raise
+                    raise
 
             # Calculate total PV generation: pv_consumption_power + grid_feedin_power
             pv_consumption = timeseries_data.get('pv_consumption_power', [])
@@ -189,6 +222,10 @@ class SolarDashboard:
             
         except Exception as e:
             print(f"  ✗ Failed to fetch data: {e}")
+
+            # Check if it's a Selenium timeout
+            if "timeout" in str(e).lower() or "timed out" in str(e).lower():
+                print("\n  Authentication timed out.")
             return None
     
     def load_data(self, force_refresh=False):
@@ -427,7 +464,7 @@ class SolarDashboard:
         BUTTON_4_PIN = 19  # KEY4
         
         print("\n" + "="*60)
-        print("DASHBOARD RUNNING (GPIO Mode with gpiozero)")
+        print("DASHBOARD RUNNING")
         print("="*60)
         print(f"Button 1 (GPIO {BUTTON_1_PIN}): Realtime")
         print(f"Button 2 (GPIO {BUTTON_2_PIN}): Daily")

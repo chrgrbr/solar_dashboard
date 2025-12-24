@@ -230,9 +230,9 @@ Check [Waveshare Wiki](https://www.waveshare.com/wiki/2.7inch_e-Paper_HAT) for y
 
 ---
 
-## 🔄 Automation
+## 🔄 Automation & Service Setup
 
-### Systemd Service
+### 1. Systemd Service (Auto-start on Boot)
 
 Create `/etc/systemd/system/solar-dashboard.service`:
 
@@ -244,50 +244,64 @@ After=network.target
 [Service]
 Type=simple
 User=pi
-WorkingDirectory=/home/pi/solar-dashboard
-Environment="PATH=/home/pi/solar-dashboard/venv/bin"
-ExecStart=/home/pi/solar-dashboard/venv/bin/python3 main.py
+WorkingDirectory=/home/pi/solar_dashboard
+Environment="PATH=/home/pi/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="PYTHONUNBUFFERED=1"
+ExecStart=/home/pi/venv/bin/python3 -u /home/pi/solar_dashboard/main.py
 Restart=on-failure
-RestartSec=60
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-Enable:
+**Enable and start:**
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable solar-dashboard
-sudo systemctl start solar-dashboard
+sudo systemctl enable solar-dashboard.service
+sudo systemctl start solar-dashboard.service
 ```
 
-Check status:
+### 2. Configure Shutdown Permission
+
+Allow button combo (1+4) to power off the Pi:
+
 ```bash
-sudo systemctl status solar-dashboard
-journalctl -u solar-dashboard -f
+sudo visudo
 ```
 
----
+Add at the end (replace `pi` with your username):
+```
+pi ALL=(ALL) NOPASSWD: /bin/systemctl poweroff, /bin/systemctl reboot
+```
 
-## 🐛 Troubleshooting
+### 3. View Logs
 
-### "Credentials not found"
-**Fix:** Create `.env` file with your credentials
+```bash
+# Live logs (follow mode)
+sudo journalctl -u solar-dashboard.service -f
 
-### "DejaVu font not found"
-**Fix:** Install fonts (see Quick Start #3)
+# Last 50 lines
+sudo journalctl -u solar-dashboard.service -n 50
 
-### "Waveshare library not found"  
-**Fix:** Install e-paper library (see Quick Start #5)
+# Check if running
+sudo systemctl status solar-dashboard.service
+```
 
-### Display shows old data
-**Fix:** Press Button 4 to force refresh
+### 4. Service Management
 
-### "Failed to initialize display"
-**Fix:** 
-1. Check SPI is enabled: `sudo raspi-config` → Interface → SPI → Yes
-2. Check display connection
-3. Run `ls /dev/spi*` to verify SPI devices exist
+```bash
+# Stop service
+sudo systemctl stop solar-dashboard.service
+
+# Restart service
+sudo systemctl restart solar-dashboard.service
+
+# Disable auto-start
+sudo systemctl disable solar-dashboard.service
+```
 
 ---
 

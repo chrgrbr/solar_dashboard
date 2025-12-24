@@ -500,5 +500,5 @@ if __name__ == "__main__":
     screens['timeline'].save('./tmp/screen4_timeline.png')
     print("✓ Screen 4 (Timeline) saved to ./tmp/screen4_timeline.png")
     
-    print("\n✅ All screens generated successfully!")
+    print("\n All screens generated successfully!")
     print("These images are ready to be sent to the e-paper display.")

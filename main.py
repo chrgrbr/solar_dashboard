@@ -7,7 +7,11 @@ Buttons:
 - Button 1: Show realtime data
 - Button 2: Show daily statistics
 - Button 3: Show monthly statistics
-- Button 4: Refresh data from API
+- Button 4: Show timeline graph
+
+Command line flags:
+- --mock: Run without e-paper hardware (saves to ./tmp/*.png)
+- --offline: Skip authentication/API, only use cached data from ./tmp/solar_display_data.json
 """
 
 import os
@@ -30,14 +34,16 @@ SCREEN_TIMEOUT_MINUTES = 30  # Return to screen 1 after inactivity
 class SolarDashboard:
     """Main dashboard controller"""
     
-    def __init__(self, mock_mode=False):
+    def __init__(self, mock_mode=False, offline_mode=False):
         """
         Initialize dashboard
-        
+
         Args:
             mock_mode: If True, run without actual e-paper hardware (for testing)
+            offline_mode: If True, never fetch data from API, only use cached data
         """
         self.mock_mode = mock_mode
+        self.offline_mode = offline_mode
         self.display_available = False  # Separate flag for display hardware
         self.current_screen = 'realtime'  # Default screen
         self.last_data_fetch = None
@@ -51,6 +57,7 @@ class SolarDashboard:
         
         print("Solar Dashboard initialized")
         print(f"Mock mode: {mock_mode}")
+        print(f"Offline mode: {offline_mode}")
         print(f"Display available: {self.display_available}")
     
     def init_display(self):
@@ -165,31 +172,53 @@ class SolarDashboard:
     def load_data(self, force_refresh=False):
         """
         Load data (from cache or fetch fresh)
-        
+
         Args:
             force_refresh: Force fetch from API even if cache is fresh
         """
-        # Check if we need to refresh
+        # In offline mode, NEVER fetch from API
+        if self.offline_mode:
+            # Try to load from cache file
+            if self.cached_data:
+                return self.cached_data
+
+            try:
+                with open(DATA_FILE, 'r') as f:
+                    data = json.load(f)
+                    self.cached_data = data
+
+                    # Set last_data_fetch to prevent auto-refresh attempts
+                    if not self.last_data_fetch:
+                        self.last_data_fetch = datetime.now()
+
+                    print(f"  ✓ Loaded cached data from {DATA_FILE}")
+                    return data
+            except FileNotFoundError:
+                print(f"✗ No cached data found at {DATA_FILE}")
+                print("  Run without --offline first to fetch and cache data")
+                return None
+
+        # Normal mode: check if we need to refresh
         needs_refresh = force_refresh
-        
+
         if not needs_refresh and self.last_data_fetch:
             age = datetime.now() - self.last_data_fetch
             if age > timedelta(minutes=DATA_CACHE_MINUTES):
                 needs_refresh = True
-        
+
         if not needs_refresh and not self.cached_data:
             needs_refresh = True
-        
+
         # Fetch fresh data if needed
         if needs_refresh:
             data = self.fetch_fresh_data()
             if data:
                 return data
-        
+
         # Try to load from cache file
         if self.cached_data:
             return self.cached_data
-        
+
         try:
             with open(DATA_FILE, 'r') as f:
                 data = json.load(f)
@@ -437,13 +466,14 @@ def main():
         has_gpio = True
     except ImportError:
         has_gpio = False
-    
+
     # Check command line args
     mock_mode = '--mock' in sys.argv or not has_gpio
-    
+    offline_mode = '--offline' in sys.argv
+
     # Create dashboard
-    dashboard = SolarDashboard(mock_mode=mock_mode)
-    
+    dashboard = SolarDashboard(mock_mode=mock_mode, offline_mode=offline_mode)
+
     # Run appropriate mode
     if has_gpio and not mock_mode:
         dashboard.run_with_gpio()

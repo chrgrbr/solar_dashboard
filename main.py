@@ -50,6 +50,7 @@ class SolarDashboard:
         self.last_button_press = datetime.now()
         self.cached_data = None
         self.cached_screens = {}
+        self.buttons = {}  # Store button objects for shutdown combo detection
         
         # Initialize e-paper display (only if not in mock mode)
         if not mock_mode:
@@ -367,23 +368,62 @@ class SolarDashboard:
             image.save(filename)
             print(f"  ✓ (Mock) Saved to {filename}")
     
+    def shutdown(self):
+        """Coordinated shutdown - clear display and exit"""
+        print("\n[Shutdown] Button combo detected (1+4)")
+        print("  → Clearing display...")
+
+        if self.display_available:
+            try:
+                self.epd.init()
+                self.epd.Clear()
+                print("  ✓ Display cleared")
+                self.epd.sleep()
+                print("  ✓ Display put to sleep")
+            except Exception as e:
+                print(f"  ✗ Failed to clear display: {e}")
+
+        print("  → Closing buttons...")
+        for btn in self.buttons.values():
+            try:
+                btn.close()
+            except:
+                pass
+
+        print("\n✓ Shutdown complete. Goodbye!")
+        sys.exit(0)
+
     def button_1_pressed(self):
-        """Button 1: Show realtime screen"""
+        """Button 1: Show realtime screen (or shutdown if Button 4 also pressed)"""
+        time.sleep(0.5)  # Brief delay to detect simultaneous press
+
+        # Check for shutdown combo
+        if self.buttons.get(4) and self.buttons[4].is_pressed:
+            self.shutdown()
+            return
+
         print("\n[Button 1] Realtime")
         self.display_screen('realtime')
-    
+
     def button_2_pressed(self):
         """Button 2: Show daily screen"""
         print("\n[Button 2] Daily")
         self.display_screen('daily')
-    
+
     def button_3_pressed(self):
         """Button 3: Show monthly screen"""
         print("\n[Button 3] Monthly")
         self.display_screen('monthly')
-    
+
     def button_4_pressed(self):
-        """Button 4: Show timeline"""
+        """Button 4: Show timeline (or shutdown if Button 1 also pressed)"""
+        time.sleep(0.5)  # Brief delay to detect simultaneous press
+
+        # Check for shutdown combo
+        if self.buttons.get(1) and self.buttons[1].is_pressed:
+            self.shutdown()
+            return
+
         print("\n[Button 4] Timeline")
         self.display_screen('timeline')
     
@@ -478,14 +518,16 @@ class SolarDashboard:
             btn2 = Button(BUTTON_2_PIN)
             btn3 = Button(BUTTON_3_PIN)
             btn4 = Button(BUTTON_4_PIN)
-            
+
+            # Store buttons for shutdown combo detection
+            self.buttons = {1: btn1, 2: btn2, 3: btn3, 4: btn4}
+
             # Assign button handlers
             btn1.when_pressed = lambda: self.button_1_pressed()
             btn2.when_pressed = lambda: self.button_2_pressed()
             btn3.when_pressed = lambda: self.button_3_pressed()
             btn4.when_pressed = lambda: self.button_4_pressed()
-            
-            print("✓ Buttons initialized with gpiozero")
+
             
         except Exception as e:
             print(f"✗ Failed to setup buttons: {e}")
@@ -508,13 +550,21 @@ class SolarDashboard:
             print("\n\nShutting down...")
         finally:
             # Clean up gpiozero buttons
-            btn1.close()
-            btn2.close()
-            btn3.close()
-            btn4.close()
-            
+            for btn in self.buttons.values():
+                try:
+                    btn.close()
+                except:
+                    pass
+
+            # Clear and sleep display
             if self.display_available:
-                self.epd.sleep()
+                try:
+                    self.epd.init()
+                    self.epd.Clear()
+                    self.epd.sleep()
+                    print("✓ Display cleared and put to sleep")
+                except:
+                    pass
 
 
 def main():

@@ -277,11 +277,10 @@ class SolarDashboard:
             data = self.fetch_fresh_data()
             if data:
                 return data
+            # If fetch failed, reload from file below
 
-        # Try to load from cache file
-        if self.cached_data:
-            return self.cached_data
-
+        # Always reload from file to get latest data
+        # (JSON might have been updated by external process or previous run)
         try:
             with open(DATA_FILE, 'r') as f:
                 data = json.load(f)

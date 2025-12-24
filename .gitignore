@@ -26,3 +26,5 @@ latest_data.json
 
 dev
 tmp/*
+tmp_old
+from_pi

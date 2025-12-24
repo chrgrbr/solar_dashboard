@@ -377,10 +377,10 @@ def create_screen_timeline(daily_data, power_timeseries):
     # 11-150 -> 128 (dark gray - darker fills/overlap)
     # 151-240 -> 192 (light gray - lighter fills)
     # 241-255 -> 255 (white - background)
-    quantized[img_array <= 120] = 0 ##black
+    quantized[img_array <= 120] = 0 
     quantized[(img_array > 120) & (img_array <= 220)] = 128
     quantized[(img_array > 220) & (img_array <= 250)] = 192
-    quantized[img_array > 250] = 255 #white
+    quantized[img_array > 250] = 255 
     
     # Convert back to PIL Image
     img = Image.fromarray(quantized.astype('uint8'), mode='L')

@@ -369,7 +369,9 @@ class SolarDashboard:
             print(f"  ✓ (Mock) Saved to {filename}")
     
     def shutdown(self):
-        """Coordinated shutdown - clear display and exit"""
+        """Coordinated shutdown - clear display and power off Pi"""
+        import subprocess
+
         print("\n[Shutdown] Button combo detected (1+4)")
         print("  → Clearing display...")
 
@@ -390,8 +392,14 @@ class SolarDashboard:
             except:
                 pass
 
-        print("\n✓ Shutdown complete. Goodbye!")
-        sys.exit(0)
+        # Power off the Pi (or just exit in mock mode)
+        if not self.mock_mode:
+            print("\n✓ Shutting down Raspberry Pi in 3 seconds...")
+            time.sleep(3)  # Give user time to see the message
+            subprocess.run(['sudo', 'systemctl', 'poweroff'])
+        else:
+            print("\n✓ Shutdown complete (mock mode - not powering off)")
+            sys.exit(0)
 
     def button_1_pressed(self):
         """Button 1: Show realtime screen (or shutdown if Button 4 also pressed)"""

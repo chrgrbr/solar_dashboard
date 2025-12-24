@@ -171,7 +171,8 @@ nano .env
 | **Button 1** | Show Realtime (current W) |
 | **Button 2** | Show Daily Stats (today's kWh) |
 | **Button 3** | Show Monthly Stats (30-day kWh) |
-| **Button 4** | Show Timeline |
+| **Button 4** | Show Timeline Graph |
+| **Button 1 + 4** | **Shutdown** (clear display & power off Pi) |
 
 ### Mock Mode (Testing without Hardware)
 

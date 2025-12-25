@@ -43,21 +43,18 @@ def get_realtime_data(token, plant_id):
     resp.raise_for_status()
     power_data = resp.json()['timeSeries']
     
-    # Get latest non-zero values
+    # Get latest values (always use most recent data point)
     def get_latest(series_name):
         values = power_data.get(series_name, [])
-        for entry in reversed(values):
-            if entry.get('value') is not None and entry['value'] != 0:
-                return entry['value'], entry['timestamp']
         if values:
             return values[-1]['value'], values[-1]['timestamp']
         return 0.0, None
-    
-    solar_power, timestamp = get_latest('pv_consumption_power')
-    consumption, _ = get_latest('home_consumption_power')
+
+    solar_power, _ = get_latest('pv_consumption_power')
+    consumption, timestamp = get_latest('home_consumption_power')  # Use consumption timestamp (always active)
     grid_feedin, _ = get_latest('grid_feedin_power')
     grid_import, _ = get_latest('grid_consumption_power')
-    
+
     return {
         'timestamp': timestamp or datetime.now().isoformat(),
         'solar_power_w': solar_power,

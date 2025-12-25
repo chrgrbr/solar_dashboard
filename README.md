@@ -62,7 +62,7 @@ Set:
 ```bash
 KOSTAL_USERNAME=your.email@example.com
 KOSTAL_PASSWORD=your_password
-KOSTAL_PLANT_ID=1082166
+KOSTAL_PLANT_ID=your_plant_id
 ```
 
 ### 3. Install Fonts

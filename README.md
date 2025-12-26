@@ -125,7 +125,7 @@ sudo apt install -y \
 ```bash
 #Create Venv
 cd ~
-pyhon -m venv venv
+python -m venv venv
 source venv/bin/activate
 python -m pip install -U pip setuptools wheel
 ```

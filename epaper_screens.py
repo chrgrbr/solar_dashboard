@@ -385,57 +385,6 @@ def create_screen_timeline(daily_data, power_timeseries):
     # img = Image.fromarray(quantized.astype('uint8'), mode='L')
     
     return img
-    
-    # Function to convert data point to pixel coordinates
-    def to_pixel(timestamp_idx, value_kw, num_points):
-        x = graph_x + int((timestamp_idx / max(num_points - 1, 1)) * graph_w)
-        y = graph_y + graph_h - int((value_kw / max_val) * graph_h)
-        return (x, y)
-    
-    # Draw GENERATION line (BLACK - 0)
-    if len(gen_values_kw) > 1:
-        points = [to_pixel(i, val, len(gen_values_kw)) for i, val in enumerate(gen_values_kw)]
-        for i in range(len(points) - 1):
-            draw.line([points[i], points[i + 1]], fill=0, width=2)
-    
-    # Draw CONSUMPTION line (DARK GRAY - 85)
-    if len(cons_values_kw) > 1:
-        points = [to_pixel(i, val, len(cons_values_kw)) for i, val in enumerate(cons_values_kw)]
-        for i in range(len(points) - 1):
-            draw.line([points[i], points[i + 1]], fill=85, width=2)
-    
-    # Y-axis labels
-    draw.text((2, graph_y - 5), f'{max_val:.1f}', fill=0, font=font_small)
-    draw.text((2, graph_y + graph_h - 8), '0', fill=0, font=font_small)
-    draw.text((2, graph_y + int(graph_h/2) - 4), f'{max_val/2:.1f}', fill=0, font=font_small)
-    
-    # X-axis time labels
-    if gen_timestamps:
-        start_time = gen_timestamps[0].strftime('%H:%M')
-        end_time = gen_timestamps[-1].strftime('%H:%M')
-        draw.text((graph_x, graph_y + graph_h + 2), start_time, fill=0, font=font_small)
-        draw.text((graph_x + graph_w - 25, graph_y + graph_h + 2), end_time, fill=0, font=font_small)
-    
-    # Legend (using different shades)
-    legend_y = 155
-    # Black line for solar
-    draw.line([(10, legend_y), (30, legend_y)], fill=0, width=2)
-    draw.text((35, legend_y - 5), 'Solar-Erzeugung', fill=0, font=font_small)
-    
-    # Dark gray line for consumption
-    draw.line([(135, legend_y), (155, legend_y)], fill=85, width=2)
-    draw.text((160, legend_y - 5), 'Verbrauch', fill=85, font=font_small)
-    
-    # Stats
-    max_gen = max(gen_values_kw)
-    avg_gen = sum(gen_values_kw) / len(gen_values_kw)
-    total_kwh = daily_data['total_generation_wh'] / 1000
-    
-    stats_text = f'Max: {max_gen:.1f}kW  Ø: {avg_gen:.1f}kW  Σ: {total_kwh:.1f}kWh'
-    draw.text((10, 167), stats_text, fill=0, font=font_small)
-    
-    # Return as grayscale (4 levels)
-    return img
 
 
 # ============================================================================

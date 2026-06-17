@@ -25,10 +25,13 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Configuration
-PLANT_ID = os.environ.get('KOSTAL_PLANT_ID', '1082166')
+PLANT_ID = os.environ.get('KOSTAL_PLANT_ID')
 DATA_FILE = './tmp/solar_display_data.json'
+LAST_SCREEN_FILE = './tmp/last_screen.txt'
 DATA_CACHE_MINUTES = 15  # Refresh data every 15 minutes
-SCREEN_TIMEOUT_MINUTES = 30  # Return to screen 1 after inactivity
+SCREEN_TIMEOUT_MINUTES = 30  # Return to default screen after inactivity
+DEFAULT_SCREEN = 'daily'  # Fallback when no persisted screen state exists (first boot)
+VALID_SCREENS = {'realtime', 'daily', 'monthly', 'timeline'}
 
 
 class SolarDashboard:
@@ -45,22 +48,44 @@ class SolarDashboard:
         self.mock_mode = mock_mode
         self.offline_mode = offline_mode
         self.display_available = False  # Separate flag for display hardware
-        self.current_screen = 'realtime'  # Default screen
+        self.current_screen = self._load_last_screen() or DEFAULT_SCREEN
         self.last_data_fetch = None
         self.last_button_press = datetime.now()
         self.cached_data = None
         self.cached_screens = {}
         self.buttons = {}  # Store button objects for shutdown combo detection
-        
+
         # Initialize e-paper display (only if not in mock mode)
         if not mock_mode:
             self.init_display()
-        
+
         print("Solar Dashboard initialized")
         print(f"Mock mode: {mock_mode}")
         print(f"Offline mode: {offline_mode}")
         print(f"Display available: {self.display_available}")
-    
+        print(f"Starting screen: {self.current_screen}")
+
+    def _load_last_screen(self):
+        """Read persisted last-viewed screen. Returns None if missing or invalid."""
+        try:
+            with open(LAST_SCREEN_FILE, 'r') as f:
+                name = f.read().strip()
+        except OSError:
+            return None
+        if name in VALID_SCREENS:
+            return name
+        print(f"  ! Ignoring invalid persisted screen: {name!r}")
+        return None
+
+    def _save_last_screen(self, screen_name):
+        """Persist last-viewed screen so it survives restarts."""
+        try:
+            os.makedirs('./tmp', exist_ok=True)
+            with open(LAST_SCREEN_FILE, 'w') as f:
+                f.write(screen_name)
+        except OSError as e:
+            print(f"  ! Failed to persist screen state: {e}")
+
     def init_display(self):
         """Initialize Waveshare e-paper display"""
         try:
@@ -341,7 +366,9 @@ class SolarDashboard:
             print("✗ Failed to generate screen")
             return
         
-        # Update current screen
+        # Update current screen (persist on actual change so it survives restarts)
+        if screen_name != self.current_screen:
+            self._save_last_screen(screen_name)
         self.current_screen = screen_name
         self.last_button_press = datetime.now()
         
@@ -454,13 +481,13 @@ class SolarDashboard:
                 # Update current screen
                 self.display_screen(self.current_screen)
         
-        # Return to screen 1 after inactivity
+        # Return to default screen after inactivity
         if self.last_button_press:
             inactive = now - self.last_button_press
             if inactive > timedelta(minutes=SCREEN_TIMEOUT_MINUTES):
-                if self.current_screen != 'realtime':
-                    print("\n[Timeout] Returning to realtime screen...")
-                    self.display_screen('realtime')
+                if self.current_screen != DEFAULT_SCREEN:
+                    print(f"\n[Timeout] Returning to {DEFAULT_SCREEN} screen...")
+                    self.display_screen(DEFAULT_SCREEN)
     
     def run(self):
         """Main loop (for systems without GPIO buttons)"""
@@ -476,8 +503,8 @@ class SolarDashboard:
         print()
         
         # Initial display
-        self.display_screen('realtime')
-        
+        self.display_screen(DEFAULT_SCREEN)
+
         # Command loop
         while True:
             try:
@@ -549,8 +576,8 @@ class SolarDashboard:
             return self.run()
         
         # Initial display
-        self.display_screen('realtime')
-        
+        self.display_screen(DEFAULT_SCREEN)
+
         try:
             # Main loop - just keep alive and check for auto-refresh
             print("\n✓ Dashboard running! Press buttons or Ctrl+C to exit.\n")

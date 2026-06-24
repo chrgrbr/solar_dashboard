@@ -27,7 +27,14 @@ def make_driver():
     import platform
     
     options = Options()
-    
+
+    # Return from driver.get() once the DOM is ready instead of blocking until
+    # every sub-resource finishes. The portal is a heavy Azure-B2C SPA; a single
+    # stalled sub-resource otherwise wedges driver.get() for the full 300s
+    # renderer timeout. The login flow only relies on explicit WebDriverWaits,
+    # so it doesn't need the full-load signal.
+    options.page_load_strategy = 'eager'
+
     # Detect platform
     system = platform.system()
     machine = platform.machine()

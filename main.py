@@ -49,7 +49,8 @@ class SolarDashboard:
         self.offline_mode = offline_mode
         self.display_available = False  # Separate flag for display hardware
         self.current_screen = self._load_last_screen() or DEFAULT_SCREEN
-        self.last_data_fetch = None
+        self.last_data_fetch = None      # time of last *successful* fetch (None until one succeeds)
+        self.last_fetch_attempt = None   # time of last fetch *attempt* (success or failure); throttles retries
         self.last_button_press = datetime.now()
         self.cached_data = None
         self.cached_screens = {}
@@ -472,14 +473,29 @@ class SolarDashboard:
         """Check if we need to auto-refresh data or return to default screen"""
         now = datetime.now()
         
-        # Auto-refresh data every DATA_CACHE_MINUTES
-        if self.last_data_fetch:
-            age = now - self.last_data_fetch
-            if age > timedelta(minutes=DATA_CACHE_MINUTES):
+        # Auto-refresh data every DATA_CACHE_MINUTES. This must also fire when no
+        # fetch has ever succeeded (last_data_fetch is None) -- otherwise a failed
+        # startup fetch (e.g. the morning Selenium auth timing out) leaves the
+        # dashboard showing stale data with no retry until a manual power-cycle.
+        data_due = (
+            self.last_data_fetch is None
+            or now - self.last_data_fetch > timedelta(minutes=DATA_CACHE_MINUTES)
+        )
+        # Throttle attempts so a persistently-failing fetch retries on the normal
+        # cadence rather than every loop iteration.
+        attempt_due = (
+            self.last_fetch_attempt is None
+            or now - self.last_fetch_attempt > timedelta(minutes=DATA_CACHE_MINUTES)
+        )
+        if data_due and attempt_due:
+            self.last_fetch_attempt = now
+            if self.last_data_fetch is None:
+                print("\n[Auto-refresh] No successful fetch yet, retrying...")
+            else:
                 print("\n[Auto-refresh] Data is stale, refreshing...")
-                self.load_data(force_refresh=True)
-                # Update current screen
-                self.display_screen(self.current_screen)
+            self.load_data(force_refresh=True)
+            # Update current screen
+            self.display_screen(self.current_screen)
         
         # Return to default screen after inactivity
         if self.last_button_press:
